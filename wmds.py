@@ -5,7 +5,7 @@ from dataclasses import dataclass
 
 @dataclass
 class LearningRate:
-    lambda_: float = 1e-3
+    lambda_: float = 1e-2
     s0: float = 1
     p: float = 0.5
     iteration: int = 0
@@ -43,7 +43,7 @@ class WeightedMDS(BaseEstimator):
         """
         assert np.allclose(weights.T, weights), "Weights matrix should be symmetrical"
         assert np.all(weights >= 0), "Weights should be non-negative"
-        self.weights = weights
+        self.weights = weights / weights.max()
         self.max_iter = max_iter
 
         self.lr = LearningRate(lambda_=lr)
