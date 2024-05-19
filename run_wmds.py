@@ -1,16 +1,67 @@
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
-from sklearn import manifold
 from sklearn.metrics.pairwise import manhattan_distances
+from scipy.optimize import LinearConstraint, minimize
+import json
+
+def generatePermutations(n):
+    return np.concatenate((np.eye(n, dtype=int), np.ones(n, dtype=int)[np.newaxis, :]), axis=0)
 
 
-scoresPaths = {
-    'raritytools': 'C:\\Users\\Asus\\NFT_Rarity\\ROAR\\rarity_scores\\raitytools_scores',
-    'kramer': 'C:\\Users\\Asus\\NFT_Rarity\ROAR\\rarity_scores\\kramer_scores',
-    'openrarity': 'C:\\Users\\Asus\\NFT_Rarity\\ROAR\\rarity_scores\\openrarity_scores',
-    'nftgo': 'C:\\Users\\Asus\\NFT_Rarity\\ROAR\\rarity_scores\\nftgo_scores'
-}
+def stress_scaled(X, dissimilarities, alpha, weights):
+    """
+    Parameters
+    ----------
+    X : array-like of shape (n_samples, n_components)
+        Configuration matrix. 
+
+    dissimilarities : array-like of shape (n_samples, n_samples)
+        Dissimilarity matrix.
+
+    alpha : float
+        Scaling factor for the distances between configuration points.
+
+    weights: ndarray of shape (n_samples, n_samples)
+        Weights for the stress calculation.
+
+    Returns
+    -------
+    self : object
+        Value of the normalized stress for given configuration and weights.
+        Distances between the points of configuration are scaled by the
+        precomputed factor that minimizes the stress.
+    """
+    distances = alpha * manhattan_distances(X)
+    return np.sqrt(np.sum(weights * ((distances - dissimilarities) ** 2)) / np.sum(weights * (distances ** 2)))
+
+
+def stress_fitted(omegas, X, dissimilarities, weights):
+    """
+    Parameters
+    ----------
+    X : array-like of shape (n_samples, n_components)
+        Configuration matrix. 
+
+    dissimilarities : array-like of shape (n_samples, n_samples)
+        Dissimilarity matrix.
+
+    omegas : ndarray of shape (n_components,)
+        Coefficients for rarity calculatiom.
+
+    weights: ndarray of shape (n_samples, n_samples)
+        Weights for the stress calculation.
+
+    Returns
+    -------
+    self : object
+        Value of the normalized stress for given configuration, weights.
+        Configuration is obtained depending on a coefficients set.
+    """
+    X = np.sum(X * omegas, axis=1).reshape(-1, 1)
+    distances = manhattan_distances(X)
+    return np.sqrt(np.sum(weights * ((distances - dissimilarities) ** 2)) / np.sum(weights * (distances ** 2)))
+
 
 if __name__ == '__main__':
 
@@ -19,48 +70,59 @@ if __name__ == '__main__':
         names=['Collection', 'Symbol', 'Address', 'Total Supply'],
         header=0,
         index_col=False
-    ).drop(0, axis='index')
+    )
 
     contractNames = collectionsDF['Symbol'].tolist()
 
-    rarityMeters = ['raritytools', 'kramer', 'openrarity', 'nftgo']
+    rarityMeters = ['kramer']
 
     optimize = False
 
-    for rarityMeter in tqdm(rarityMeters[:1]):
-        for contractName in contractNames[:1]:
-            X_init = np.load(f'C:\\Users\\Asus\\NFT_Rarity\\ROAR\\configurations\\{rarityMeter}\\{contractName}.npy').reshape(-1, 1)
-            dissimilarities = np.load(f'C:\\Users\\Asus\\NFT_Rarity\\ROAR\\dissimilarities\\{contractName}.npy')
-            weights = np.load(f'C:\\Users\\Asus\\NFT_Rarity\\ROAR\\weights\\{contractName}.npy')
-            alpha = np.load(f'C:\\Users\\Asus\\NFT_Rarity\\ROAR\\alphas\\{rarityMeter}\\{contractName}_alpha.npy')
+    for rarityMeter in tqdm(rarityMeters):
+        for contractName in contractNames[1:2]:
 
-            if optimize == True:
-                mds = manifold.MDS(
-                    n_components=1,
-                    metric=False, 
-                    n_init=1,
-                    max_iter=3000, 
-                    eps=1e-9, 
-                    dissimilarity="precomputed", 
-                    n_jobs=1,
-                )
-                pos = mds.fit(dissimilarities, init=X_init, weight=weights).embedding_
-                stress = mds.stress_
-                print(stress)
-                with open(f'C:\\Users\\Asus\\NFT_Rarity\\ROAR\\results\\{rarityMeter}\\{contractName}_pos.npy', 'wb') as f:
-                    np.save(f, pos)
-                with open(f'C:\\Users\\Asus\\NFT_Rarity\\ROAR\\results\\{rarityMeter}\\{contractName}_stress.npy', 'wb') as f:
-                    np.save(f, stress)
-            else:
-                distances = alpha * manhattan_distances(X_init)
-                stress = np.sqrt(np.sum(weights * ((distances - dissimilarities) ** 2)) / np.sum(weights * (distances ** 2)))
-                print(stress)
+            if rarityMeter in ['raritytools', 'openrarity', 'nftgo']:
+                X_init = np.load(f'C:\\Users\\Asus\\NFT_Rarity\\ROAR\\configurations\\{rarityMeter}\\{contractName}.npy').reshape(-1, 1)
+                dissimilarities = np.load(f'C:\\Users\\Asus\\NFT_Rarity\\ROAR\\dissimilarities\\{contractName}.npy')
+                weights = np.load(f'C:\\Users\\Asus\\NFT_Rarity\\ROAR\\weights\\{contractName}.npy')
+                alpha = np.load(f'C:\\Users\\Asus\\NFT_Rarity\\ROAR\\alphas\\{rarityMeter}\\{contractName}_alpha.npy')
+
+                stress = stress_scaled(X_init, dissimilarities, alpha, weights)
                 with open(f'C:\\Users\\Asus\\NFT_Rarity\\ROAR\\results\\{rarityMeter}\\{contractName}_stress_noopt.npy', 'wb') as f:
                     np.save(f, stress)
-            
 
-            
+            elif rarityMeter == 'kramer':
+                X_init = np.load(f'C:\\Users\\Asus\\NFT_Rarity\\ROAR\\configurations\\{rarityMeter}\\{contractName}.npy')
+                dissimilarities = np.load(f'C:\\Users\\Asus\\NFT_Rarity\\ROAR\\dissimilarities\\{contractName}.npy')
+                weights = np.load(f'C:\\Users\\Asus\\NFT_Rarity\\ROAR\\weights\\{contractName}.npy')
 
-            
-            
-            
+                numberOfFreeCoefficients = X_init.shape[1]
+                linearConstraints = []
+                linearConstraints.append(generatePermutations(numberOfFreeCoefficients))
+                linearConstraints.append(np.full(numberOfFreeCoefficients + 1, 0))
+                linearConstraints.append(np.full(numberOfFreeCoefficients + 1, 1))
+                linearConstraints = LinearConstraint(linearConstraints[0], linearConstraints[1], linearConstraints[2])
+                coefficientsStart = np.full(numberOfFreeCoefficients, 1 / numberOfFreeCoefficients)
+
+                stress_fitted(coefficientsStart, X_init, dissimilarities, weights)
+
+                minimizationResults = minimize(
+                    stress_fitted, x0=coefficientsStart,
+                    args=(X_init, dissimilarities, weights),
+                    constraints=linearConstraints, options={'disp': True},
+                )
+
+                resultsDict = {
+                    'x': minimizationResults.x.tolist(), 
+                    'fun': minimizationResults.fun, 
+                    'success': bool(minimizationResults.success),
+                    'message': minimizationResults.message,
+                    'jac': minimizationResults.jac.tolist(),
+                    'nit': minimizationResults.nit,
+                    'nfev': minimizationResults.nfev,
+                    'njev': minimizationResults.njev,
+                    'status': minimizationResults.status
+                }
+
+                with open(f'C:\\Users\\Asus\\NFT_Rarity\\ROAR\\results\\{rarityMeter}\\{contractName}.json', "w") as file:
+                    json.dump(resultsDict, file, indent=2)
