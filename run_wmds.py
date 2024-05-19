@@ -74,12 +74,12 @@ if __name__ == '__main__':
 
     contractNames = collectionsDF['Symbol'].tolist()
 
-    rarityMeters = ['kramer']
+    rarityMeters = ['roar']
 
     optimize = False
 
     for rarityMeter in tqdm(rarityMeters):
-        for contractName in contractNames[1:2]:
+        for contractName in contractNames:
 
             if rarityMeter in ['raritytools', 'openrarity', 'nftgo']:
                 X_init = np.load(f'C:\\Users\\Asus\\NFT_Rarity\\ROAR\\configurations\\{rarityMeter}\\{contractName}.npy').reshape(-1, 1)
@@ -91,7 +91,7 @@ if __name__ == '__main__':
                 with open(f'C:\\Users\\Asus\\NFT_Rarity\\ROAR\\results\\{rarityMeter}\\{contractName}_stress_noopt.npy', 'wb') as f:
                     np.save(f, stress)
 
-            elif rarityMeter == 'kramer':
+            elif rarityMeter in ['kramer', 'roar']:
                 X_init = np.load(f'C:\\Users\\Asus\\NFT_Rarity\\ROAR\\configurations\\{rarityMeter}\\{contractName}.npy')
                 dissimilarities = np.load(f'C:\\Users\\Asus\\NFT_Rarity\\ROAR\\dissimilarities\\{contractName}.npy')
                 weights = np.load(f'C:\\Users\\Asus\\NFT_Rarity\\ROAR\\weights\\{contractName}.npy')
@@ -103,8 +103,6 @@ if __name__ == '__main__':
                 linearConstraints.append(np.full(numberOfFreeCoefficients + 1, 1))
                 linearConstraints = LinearConstraint(linearConstraints[0], linearConstraints[1], linearConstraints[2])
                 coefficientsStart = np.full(numberOfFreeCoefficients, 1 / numberOfFreeCoefficients)
-
-                stress_fitted(coefficientsStart, X_init, dissimilarities, weights)
 
                 minimizationResults = minimize(
                     stress_fitted, x0=coefficientsStart,
